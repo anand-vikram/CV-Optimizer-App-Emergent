@@ -1,0 +1,99 @@
+{
+  "theme": "LIGHT",
+  "archetype": "Archetype 4 (Swiss & High-Contrast)",
+  "rationale": "For a SaaS career tool aimed at getting users hired, authority and clarity are paramount. A Swiss High-Contrast design implies precision, objectivity, and trustworthiness. We avoid playful colors and soft shadows in favor of strict grids, bold typography, and stark monochrome aesthetics with sharp accent colors to highlight missing keywords and ATS scores.",
+  "typography": {
+    "strategy": "Swiss Brutalist",
+    "headings": {
+      "font_family": "Cabinet Grotesk",
+      "weights": ["font-light", "font-black"],
+      "styling": "tracking-tight leading-none text-left",
+      "import_url": "https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@100,200,300,400,500,700,800,900&display=swap"
+    },
+    "body": {
+      "font_family": "Satoshi",
+      "weights": ["font-normal", "font-medium"],
+      "styling": "leading-relaxed text-left",
+      "import_url": "https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700,900&display=swap"
+    },
+    "mono": {
+      "font_family": "IBM Plex Mono",
+      "usage": "Data points, ATS scores, keywords, labels, code blocks",
+      "import_url": "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+    }
+  },
+  "color_palette": {
+    "background": {
+      "primary": "#FFFFFF",
+      "secondary": "#F4F4F5",
+      "overlay": "rgba(10, 10, 10, 0.4)"
+    },
+    "text": {
+      "primary": "#0A0A0A",
+      "secondary": "#52525B",
+      "inverted": "#FFFFFF"
+    },
+    "accents": {
+      "primary_action": "#002FA7",
+      "primary_hover": "#002482",
+      "warning_gap": "#FF2A2A",
+      "success_ats": "#00C853"
+    },
+    "borders": {
+      "default": "#E4E4E7",
+      "focus": "#002FA7"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous Spacing, Asymmetry, and Grid Borders.",
+    "dashboard_grid": "The 'Control Room' Grid: grid-cols-1 md:grid-cols-3 lg:grid-cols-4 with gap-6. Dense, compact, data correlation focused.",
+    "marketing_grid": "The 'Tetris' Grid: grid-cols-1 md:grid-cols-12 gap-8 with overlapping asymmetrical elements.",
+    "alignment": "Strictly left-aligned text. No center-aligned blocks unless it's a very specific empty state.",
+    "padding": "Use p-6 or p-8 inside bordered containers."
+  },
+  "surface_strategies": {
+    "cards": "Grid Borders: Flat background, sharp edges (rounded-none or rounded-sm max 2px), 1px solid border (border-zinc-200), no soft drop shadows. Expose the skeleton.",
+    "modals": "Solid white backgrounds with sharp black borders, heavy backdrop-blur deactivated. Pure functional UI.",
+    "navigation": "Solid background with a harsh 1px bottom border."
+  },
+  "component_guidelines": {
+    "buttons": "Sharp corners (rounded-none), high contrast text. Primary CTA uses #002FA7. Add data-testid to all.",
+    "forms": "Shadcn UI, customized to have sharp corners, left-aligned labels, bold typography for input values. Input borders should be crisp.",
+    "data_viz": "Use Recharts. High contrast lines, no gradients. Stark monochrome with #002FA7 and #00C853 highlights for scores.",
+    "badges_keywords": "For ATS keywords: squared badges, subtle grey background, strict mono font."
+  },
+  "motion_interactions": {
+    "hover": "Slight lift (-translate-y-px), sharp drop-shadow-[4px_4px_0px_rgba(0,0,0,1)] (Neo-brutalist hint) or darken border.",
+    "transitions": "transition-all duration-200 ease-in-out.",
+    "accessibility": "Respect prefers-reduced-motion."
+  },
+  "testing_attributes": "All interactive elements (buttons, inputs, links, tabs, specific data scores) MUST have a data-testid attribute formatted as kebab-case and role-based (e.g., data-testid='upload-cv-button', data-testid='ats-score-display').",
+  "media": {
+    "hero_image": {
+      "url": "https://images.unsplash.com/photo-1698047682091-782b1e5c6536?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjBqb2IlMjBpbnRlcnZpZXclMjBmb2N1c3xlbnwwfHx8fDE3ODEzNzU1NTh8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Professional interview setting. Use on the marketing/landing page hero, paired with heavy black overlay or stark typography.",
+      "category": "marketing_hero"
+    },
+    "background_texture": {
+      "url": "https://images.unsplash.com/photo-1601662528567-526cd06f6582?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMG1pbmltYWwlMjBwYXBlciUyMHRleHR1cmUlMjB3aGl0ZXxlbnwwfHx8fDE3ODEzNzU1NTh8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Minimal white paper texture for subtle background layering in the dashboard.",
+      "category": "texture"
+    },
+    "empty_state_upload": {
+      "url": "https://images.unsplash.com/photo-1698047681452-08eba22d0c64?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBqb2IlMjBpbnRlcnZpZXclMjBmb2N1c3xlbnwwfHx8fDE3ODEzNzU1NTh8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Person holding paper. Ideal for 'Upload your CV' or 'Awaiting Job Description' empty states in the app.",
+      "category": "empty_state"
+    }
+  },
+  "iconography": "Use @phosphor-icons/react for sharp, editorial-friendly, readable line icons.",
+  "instructions_to_main_agent": [
+    "Install required dependencies: yarn add @phosphor-icons/react clsx tailwind-merge framer-motion recharts",
+    "Load Cabinet Grotesk, Satoshi, and IBM Plex Mono fonts from Fontshare/Google Fonts in index.html.",
+    "Use Shadcn UI for forms, tabs, and complex interactive components, but HEAVILY customize them to remove standard soft radius/shadows. Force sharp edges (rounded-none).",
+    "Construct a 'Control Room' bento grid layout for the CV analysis dashboard.",
+    "Sections needed: Registration/Login, Dashboard Home (Past CVs), CV Upload Flow, Job Description Form, Live Analysis Panel (ATS Score, Gap Analysis, Keyword Match), Optimization Output (Download PDF/Word), and Cover Letter Generator.",
+    "Implement data-testid tags comprehensively on all actionable and output elements.",
+    "Make the ATS Score visualization prominent using high-contrast typography and charts (recharts).",
+    "Emphasize content hierarchy: massive typography for top-level scores/actions, strict mono-font lists for missing keywords."
+  ]
+}
