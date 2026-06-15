@@ -1,6 +1,6 @@
-"""CV parsing (PDF/DOCX/TXT) and document generation (PDF/DOCX)."""
+"""CV parsing (PDF/DOCX/TXT) and document generation (PDF/DOCX) — refined v2."""
 import io
-from typing import Optional
+from typing import Any
 from pypdf import PdfReader
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
@@ -10,10 +10,10 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib.colors import HexColor, black
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
-from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.enums import TA_LEFT, TA_CENTER
 
 
-# --- Parsing ---
+# ===================== Parsing =====================
 
 def parse_cv_bytes(file_bytes: bytes, filename: str) -> str:
     name = filename.lower()
@@ -46,9 +46,32 @@ def _parse_docx(b: bytes) -> str:
     return "\n".join(parts).strip()
 
 
-# --- DOCX generation ---
+# ===================== Normalizers =====================
 
-def _add_heading(doc: Document, text: str):
+def _norm_cert(c: Any) -> dict:
+    if isinstance(c, dict):
+        return {
+            "name": (c.get("name") or "").strip(),
+            "institute": (c.get("institute") or c.get("issuer") or "").strip(),
+            "year": (c.get("year") or c.get("date") or "").strip(),
+        }
+    return {"name": str(c).strip(), "institute": "", "year": ""}
+
+
+def _norm_pub(p: Any) -> dict:
+    if isinstance(p, dict):
+        return {
+            "title": (p.get("title") or p.get("name") or "").strip(),
+            "publisher": (p.get("publisher") or p.get("journal") or "").strip(),
+            "year": (p.get("year") or "").strip(),
+            "description": (p.get("description") or "").strip(),
+        }
+    return {"title": str(p).strip(), "publisher": "", "year": "", "description": ""}
+
+
+# ===================== DOCX generation =====================
+
+def _add_section_heading(doc: Document, text: str):
     p = doc.add_paragraph()
     run = p.add_run(text.upper())
     run.bold = True
@@ -56,7 +79,6 @@ def _add_heading(doc: Document, text: str):
     run.font.color.rgb = RGBColor(0x00, 0x2F, 0xA7)
     p.paragraph_format.space_before = Pt(10)
     p.paragraph_format.space_after = Pt(2)
-    # underline rule
     rule = doc.add_paragraph()
     rule_run = rule.add_run("_" * 90)
     rule_run.font.size = Pt(6)
@@ -72,8 +94,9 @@ def generate_cv_docx(cv: dict) -> bytes:
         section.left_margin = Inches(0.7)
         section.right_margin = Inches(0.7)
 
-    # Name
+    # --- Centered Header ---
     name_p = doc.add_paragraph()
+    name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     name_run = name_p.add_run(cv.get("full_name", "").upper())
     name_run.bold = True
     name_run.font.size = Pt(22)
@@ -82,40 +105,44 @@ def generate_cv_docx(cv: dict) -> bytes:
 
     if cv.get("headline"):
         h_p = doc.add_paragraph()
+        h_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         h_run = h_p.add_run(cv["headline"])
         h_run.font.size = Pt(11)
         h_run.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
         h_p.paragraph_format.space_after = Pt(4)
 
-    # Contact line
     contact = cv.get("contact", {}) or {}
-    parts = [contact.get(k, "") for k in ("email", "phone", "location", "linkedin", "website")]
-    parts = [p for p in parts if p]
-    if parts:
+    contact_parts = [contact.get(k, "") for k in ("email", "phone", "location", "linkedin", "website")]
+    contact_parts = [p for p in contact_parts if p]
+    if contact_parts:
         c_p = doc.add_paragraph()
-        c_run = c_p.add_run("  |  ".join(parts))
+        c_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        c_run = c_p.add_run("  |  ".join(contact_parts))
         c_run.font.size = Pt(9)
         c_run.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
+        c_p.paragraph_format.space_after = Pt(2)
 
-    # Summary
+    # --- Summary ---
     if cv.get("professional_summary"):
-        _add_heading(doc, "Professional Summary")
+        _add_section_heading(doc, "Professional Summary")
         s = doc.add_paragraph(cv["professional_summary"])
         for r in s.runs:
             r.font.size = Pt(10)
 
-    # Skills
+    # --- Skills (clean wrapping comma-separated) ---
     skills = cv.get("core_skills") or []
     if skills:
-        _add_heading(doc, "Core Skills")
-        s = doc.add_paragraph(" • ".join(skills))
+        _add_section_heading(doc, "Core Skills")
+        # Use comma separators for cleaner wrap (avoids bullet cramming)
+        s = doc.add_paragraph(", ".join(skills))
+        s.paragraph_format.line_spacing = 1.25
         for r in s.runs:
             r.font.size = Pt(10)
 
-    # Experience
+    # --- Experience ---
     exp = cv.get("experience") or []
     if exp:
-        _add_heading(doc, "Professional Experience")
+        _add_section_heading(doc, "Professional Experience")
         for job in exp:
             p = doc.add_paragraph()
             t = p.add_run(f"{job.get('title','')} — {job.get('company','')}")
@@ -133,10 +160,10 @@ def generate_cv_docx(cv: dict) -> bytes:
                 for r in bp.runs:
                     r.font.size = Pt(10)
 
-    # Education
+    # --- Education ---
     edu = cv.get("education") or []
     if edu:
-        _add_heading(doc, "Education")
+        _add_section_heading(doc, "Education")
         for e in edu:
             p = doc.add_paragraph()
             t = p.add_run(f"{e.get('degree','')} — {e.get('institution','')}")
@@ -152,18 +179,31 @@ def generate_cv_docx(cv: dict) -> bytes:
                 sub_run.font.size = Pt(9)
                 sub_run.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
 
-    # Certifications
-    certs = cv.get("certifications") or []
+    # --- Certifications (ONE per line, name — institute, year) ---
+    certs = [_norm_cert(c) for c in (cv.get("certifications") or [])]
+    certs = [c for c in certs if c["name"]]
     if certs:
-        _add_heading(doc, "Certifications")
-        s = doc.add_paragraph(" • ".join(certs))
-        for r in s.runs:
-            r.font.size = Pt(10)
+        _add_section_heading(doc, "Certifications")
+        for c in certs:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(2)
+            name_run = p.add_run(c["name"])
+            name_run.bold = True
+            name_run.font.size = Pt(10)
+            if c["institute"]:
+                inst = p.add_run(f"  —  {c['institute']}")
+                inst.font.size = Pt(10)
+                inst.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
+            if c["year"]:
+                yr = p.add_run(f"  ({c['year']})")
+                yr.font.size = Pt(9)
+                yr.italic = True
+                yr.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
 
-    # Projects
+    # --- Projects (hands-on work only) ---
     projects = cv.get("projects") or []
     if projects:
-        _add_heading(doc, "Projects")
+        _add_section_heading(doc, "Projects")
         for proj in projects:
             p = doc.add_paragraph()
             t = p.add_run(proj.get("name", ""))
@@ -172,6 +212,29 @@ def generate_cv_docx(cv: dict) -> bytes:
             desc = doc.add_paragraph(proj.get("description", ""))
             for r in desc.runs:
                 r.font.size = Pt(10)
+
+    # --- Publications (books, papers, articles) ---
+    pubs = [_norm_pub(p) for p in (cv.get("publications") or [])]
+    pubs = [p for p in pubs if p["title"]]
+    if pubs:
+        _add_section_heading(doc, "Publications")
+        for pub in pubs:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(2)
+            t = p.add_run(pub["title"])
+            t.bold = True
+            t.font.size = Pt(10)
+            meta_bits = [x for x in [pub["publisher"], pub["year"]] if x]
+            if meta_bits:
+                meta = p.add_run(f"  —  {', '.join(meta_bits)}")
+                meta.font.size = Pt(9)
+                meta.italic = True
+                meta.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
+            if pub["description"]:
+                d = doc.add_paragraph(pub["description"])
+                d.paragraph_format.space_after = Pt(4)
+                for r in d.runs:
+                    r.font.size = Pt(10)
 
     buf = io.BytesIO()
     doc.save(buf)
@@ -207,19 +270,19 @@ def generate_cover_letter_docx(text: str, candidate_name: str) -> bytes:
     return buf.getvalue()
 
 
-# --- PDF generation ---
+# ===================== PDF generation =====================
 
 def _pdf_styles():
     styles = getSampleStyleSheet()
     blue = HexColor("#002FA7")
     grey = HexColor("#52525B")
-    custom = {
-        "name": ParagraphStyle("Name", parent=styles["Title"], fontName="Helvetica-Bold",
-                                fontSize=22, leading=24, textColor=black, alignment=TA_LEFT, spaceAfter=2),
-        "headline": ParagraphStyle("Headline", parent=styles["Normal"], fontName="Helvetica",
-                                    fontSize=11, leading=14, textColor=grey, spaceAfter=4),
-        "contact": ParagraphStyle("Contact", parent=styles["Normal"], fontName="Helvetica",
-                                   fontSize=9, leading=12, textColor=grey, spaceAfter=8),
+    return {
+        "name_center": ParagraphStyle("NameC", parent=styles["Title"], fontName="Helvetica-Bold",
+                                       fontSize=22, leading=26, textColor=black, alignment=TA_CENTER, spaceAfter=2),
+        "headline_center": ParagraphStyle("HeadC", parent=styles["Normal"], fontName="Helvetica",
+                                           fontSize=11, leading=14, textColor=grey, alignment=TA_CENTER, spaceAfter=4),
+        "contact_center": ParagraphStyle("ContactC", parent=styles["Normal"], fontName="Helvetica",
+                                          fontSize=9, leading=12, textColor=grey, alignment=TA_CENTER, spaceAfter=8),
         "section": ParagraphStyle("Section", parent=styles["Heading2"], fontName="Helvetica-Bold",
                                    fontSize=11, leading=14, textColor=blue, spaceBefore=10,
                                    spaceAfter=4, alignment=TA_LEFT),
@@ -228,12 +291,15 @@ def _pdf_styles():
         "jobsub": ParagraphStyle("JobSub", parent=styles["Normal"], fontName="Helvetica-Oblique",
                                   fontSize=9, leading=12, textColor=grey, spaceAfter=4),
         "body": ParagraphStyle("Body", parent=styles["Normal"], fontName="Helvetica",
-                                fontSize=10, leading=13, textColor=black, spaceAfter=3, alignment=TA_LEFT),
+                                fontSize=10, leading=14, textColor=black, spaceAfter=3, alignment=TA_LEFT),
+        "skills": ParagraphStyle("Skills", parent=styles["Normal"], fontName="Helvetica",
+                                  fontSize=10, leading=16, textColor=black, spaceAfter=3, alignment=TA_LEFT),
         "bullet": ParagraphStyle("Bullet", parent=styles["Normal"], fontName="Helvetica",
                                   fontSize=10, leading=13, textColor=black, leftIndent=14,
                                   bulletIndent=2, spaceAfter=2, alignment=TA_LEFT),
+        "cert_line": ParagraphStyle("CertLine", parent=styles["Normal"], fontName="Helvetica",
+                                     fontSize=10, leading=14, textColor=black, spaceAfter=3, alignment=TA_LEFT),
     }
-    return custom
 
 
 def generate_cv_pdf(cv: dict) -> bytes:
@@ -244,27 +310,31 @@ def generate_cv_pdf(cv: dict) -> bytes:
     s = _pdf_styles()
     story = []
 
-    story.append(Paragraph(cv.get("full_name", "").upper(), s["name"]))
+    # Centered header (name + headline + contact)
+    story.append(Paragraph(cv.get("full_name", "").upper(), s["name_center"]))
     if cv.get("headline"):
-        story.append(Paragraph(cv["headline"], s["headline"]))
+        story.append(Paragraph(cv["headline"], s["headline_center"]))
 
     contact = cv.get("contact", {}) or {}
-    parts = [contact.get(k, "") for k in ("email", "phone", "location", "linkedin", "website")]
-    parts = [p for p in parts if p]
-    if parts:
-        story.append(Paragraph("  |  ".join(parts), s["contact"]))
+    contact_parts = [contact.get(k, "") for k in ("email", "phone", "location", "linkedin", "website")]
+    contact_parts = [p for p in contact_parts if p]
+    if contact_parts:
+        story.append(Paragraph("  |  ".join(contact_parts), s["contact_center"]))
 
-    story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#E4E4E7"), spaceAfter=4))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#E4E4E7"), spaceAfter=6))
 
+    # Summary
     if cv.get("professional_summary"):
         story.append(Paragraph("PROFESSIONAL SUMMARY", s["section"]))
         story.append(Paragraph(cv["professional_summary"], s["body"]))
 
+    # Skills: clean wrapping comma list (more breathing room)
     skills = cv.get("core_skills") or []
     if skills:
         story.append(Paragraph("CORE SKILLS", s["section"]))
-        story.append(Paragraph(" &nbsp;•&nbsp; ".join(skills), s["body"]))
+        story.append(Paragraph(", ".join(skills), s["skills"]))
 
+    # Experience
     exp = cv.get("experience") or []
     if exp:
         story.append(Paragraph("PROFESSIONAL EXPERIENCE", s["section"]))
@@ -278,6 +348,7 @@ def generate_cv_pdf(cv: dict) -> bytes:
                 story.append(Paragraph(b, s["bullet"], bulletText="•"))
             story.append(Spacer(1, 4))
 
+    # Education
     edu = cv.get("education") or []
     if edu:
         story.append(Paragraph("EDUCATION", s["section"]))
@@ -287,17 +358,40 @@ def generate_cv_pdf(cv: dict) -> bytes:
             if sub_parts:
                 story.append(Paragraph(" &nbsp;|&nbsp; ".join(sub_parts), s["jobsub"]))
 
-    certs = cv.get("certifications") or []
+    # Certifications — one per line: bold name — institute (year)
+    certs = [_norm_cert(c) for c in (cv.get("certifications") or [])]
+    certs = [c for c in certs if c["name"]]
     if certs:
         story.append(Paragraph("CERTIFICATIONS", s["section"]))
-        story.append(Paragraph(" &nbsp;•&nbsp; ".join(certs), s["body"]))
+        for c in certs:
+            line = f"<b>{c['name']}</b>"
+            if c["institute"]:
+                line += f' &nbsp;&mdash;&nbsp; <font color="#52525B">{c["institute"]}</font>'
+            if c["year"]:
+                line += f' &nbsp;<font color="#52525B"><i>({c["year"]})</i></font>'
+            story.append(Paragraph(line, s["cert_line"]))
 
+    # Projects (technical/work projects only)
     projects = cv.get("projects") or []
     if projects:
         story.append(Paragraph("PROJECTS", s["section"]))
         for proj in projects:
             story.append(Paragraph(proj.get("name", ""), s["jobtitle"]))
             story.append(Paragraph(proj.get("description", ""), s["body"]))
+
+    # Publications (books, papers, articles)
+    pubs = [_norm_pub(p) for p in (cv.get("publications") or [])]
+    pubs = [p for p in pubs if p["title"]]
+    if pubs:
+        story.append(Paragraph("PUBLICATIONS", s["section"]))
+        for pub in pubs:
+            meta_bits = [x for x in [pub["publisher"], pub["year"]] if x]
+            line = f"<b>{pub['title']}</b>"
+            if meta_bits:
+                line += f' &nbsp;&mdash;&nbsp; <font color="#52525B"><i>{", ".join(meta_bits)}</i></font>'
+            story.append(Paragraph(line, s["cert_line"]))
+            if pub["description"]:
+                story.append(Paragraph(pub["description"], s["body"]))
 
     doc.build(story)
     return buf.getvalue()
@@ -311,7 +405,7 @@ def generate_cover_letter_pdf(text: str, candidate_name: str) -> bytes:
     s = _pdf_styles()
     story = []
     if candidate_name:
-        story.append(Paragraph(candidate_name.upper(), s["name"]))
+        story.append(Paragraph(candidate_name.upper(), s["name_center"]))
         story.append(Spacer(1, 10))
     for para in text.split("\n\n"):
         para = para.strip()

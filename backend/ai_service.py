@@ -125,11 +125,23 @@ Return JSON with this exact schema:
       "details": "<optional: GPA, honors, or empty>"
     }}
   ],
-  "certifications": [<list of certifications or empty array>],
+  "certifications": [
+    {{"name": "<certification name>", "institute": "<issuing body or empty>", "year": "<YYYY or empty>"}}
+  ],
   "projects": [
-    {{"name": "<name>", "description": "<1-2 sentence keyword-rich description>"}}
+    {{"name": "<project name>", "description": "<1-2 sentence keyword-rich description of a hands-on technical/work project>"}}
+  ],
+  "publications": [
+    {{"title": "<publication title>", "publisher": "<publisher, journal, or empty>", "year": "<YYYY or empty>", "description": "<optional 1-line description>"}}
   ]
 }}
+
+IMPORTANT classification rules:
+- "projects" = hands-on technical/work projects the candidate built or led (e.g., software systems, deployments, case studies).
+- "publications" = books, journal/conference papers, articles, whitepapers AUTHORED by the candidate. NEVER put books or papers in "projects".
+- If the source CV has no projects, return projects: [].
+- If the source CV has no publications, return publications: [].
+- If certifications appear without an institute, leave institute as "".
 
 === TARGET JOB ===
 Title: {job_title}
