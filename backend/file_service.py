@@ -10,7 +10,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib.colors import HexColor, black
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
-from reportlab.lib.enums import TA_LEFT, TA_CENTER
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
 
 
 # ===================== Parsing =====================
@@ -94,7 +94,7 @@ def generate_cv_docx(cv: dict) -> bytes:
         section.left_margin = Inches(0.7)
         section.right_margin = Inches(0.7)
 
-    # --- Centered Header ---
+    # --- Centered Header (name + contact only — headline moves to Objective) ---
     name_p = doc.add_paragraph()
     name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     name_run = name_p.add_run(cv.get("full_name", "").upper())
@@ -102,14 +102,6 @@ def generate_cv_docx(cv: dict) -> bytes:
     name_run.font.size = Pt(22)
     name_run.font.color.rgb = RGBColor(0x0A, 0x0A, 0x0A)
     name_p.paragraph_format.space_after = Pt(2)
-
-    if cv.get("headline"):
-        h_p = doc.add_paragraph()
-        h_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        h_run = h_p.add_run(cv["headline"])
-        h_run.font.size = Pt(11)
-        h_run.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
-        h_p.paragraph_format.space_after = Pt(4)
 
     contact = cv.get("contact", {}) or {}
     contact_parts = [contact.get(k, "") for k in ("email", "phone", "location", "linkedin", "website")]
@@ -122,20 +114,35 @@ def generate_cv_docx(cv: dict) -> bytes:
         c_run.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
         c_p.paragraph_format.space_after = Pt(2)
 
-    # --- Summary ---
+    # --- Objective (target role) ---
+    if cv.get("headline"):
+        _add_section_heading(doc, "Objective")
+        obj_p = doc.add_paragraph()
+        seek = obj_p.add_run("Seeking the position of ")
+        seek.font.size = Pt(11)
+        role = obj_p.add_run(cv["headline"])
+        role.bold = True
+        role.font.size = Pt(11)
+        period = obj_p.add_run(".")
+        period.font.size = Pt(11)
+        obj_p.paragraph_format.space_after = Pt(6)
+
+    # --- Summary (justified) ---
     if cv.get("professional_summary"):
         _add_section_heading(doc, "Professional Summary")
         s = doc.add_paragraph(cv["professional_summary"])
+        s.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         for r in s.runs:
             r.font.size = Pt(10)
 
-    # --- Skills (clean wrapping comma-separated) ---
+    # --- Skills (hyphen-prefixed, justified) ---
     skills = cv.get("core_skills") or []
     if skills:
         _add_section_heading(doc, "Core Skills")
-        # Use comma separators for cleaner wrap (avoids bullet cramming)
-        s = doc.add_paragraph(", ".join(skills))
-        s.paragraph_format.line_spacing = 1.25
+        skills_text = "   ".join(f"-{sk}" for sk in skills)
+        s = doc.add_paragraph(skills_text)
+        s.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        s.paragraph_format.line_spacing = 1.35
         for r in s.runs:
             r.font.size = Pt(10)
 
@@ -152,9 +159,9 @@ def generate_cv_docx(cv: dict) -> bytes:
             loc = job.get("location", "")
             sub = doc.add_paragraph()
             sub_run = sub.add_run(f"{loc}  |  {dates}" if loc else dates)
-            sub_run.italic = True
-            sub_run.font.size = Pt(9)
-            sub_run.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
+            sub_run.font.size = Pt(11)
+            sub_run.font.color.rgb = RGBColor(0x0A, 0x0A, 0x0A)
+            sub.paragraph_format.space_after = Pt(3)
             for b in job.get("bullets", []):
                 bp = doc.add_paragraph(b, style="List Bullet")
                 for r in bp.runs:
@@ -175,9 +182,8 @@ def generate_cv_docx(cv: dict) -> bytes:
             if sub_text:
                 sub = doc.add_paragraph()
                 sub_run = sub.add_run(sub_text)
-                sub_run.italic = True
-                sub_run.font.size = Pt(9)
-                sub_run.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
+                sub_run.font.size = Pt(11)
+                sub_run.font.color.rgb = RGBColor(0x0A, 0x0A, 0x0A)
 
     # --- Certifications (ONE per line, name — institute, year) ---
     certs = [_norm_cert(c) for c in (cv.get("certifications") or [])]
@@ -286,14 +292,19 @@ def _pdf_styles():
         "section": ParagraphStyle("Section", parent=styles["Heading2"], fontName="Helvetica-Bold",
                                    fontSize=11, leading=14, textColor=blue, spaceBefore=10,
                                    spaceAfter=4, alignment=TA_LEFT),
+        "objective": ParagraphStyle("Objective", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                     fontSize=11, leading=15, textColor=black, spaceAfter=8, alignment=TA_LEFT),
         "jobtitle": ParagraphStyle("JobTitle", parent=styles["Normal"], fontName="Helvetica-Bold",
                                     fontSize=11, leading=14, textColor=black, spaceAfter=1),
-        "jobsub": ParagraphStyle("JobSub", parent=styles["Normal"], fontName="Helvetica-Oblique",
-                                  fontSize=9, leading=12, textColor=grey, spaceAfter=4),
+        "jobsub": ParagraphStyle("JobSub", parent=styles["Normal"], fontName="Helvetica",
+                                  fontSize=11, leading=14, textColor=black, spaceAfter=4),
         "body": ParagraphStyle("Body", parent=styles["Normal"], fontName="Helvetica",
                                 fontSize=10, leading=14, textColor=black, spaceAfter=3, alignment=TA_LEFT),
-        "skills": ParagraphStyle("Skills", parent=styles["Normal"], fontName="Helvetica",
-                                  fontSize=10, leading=16, textColor=black, spaceAfter=3, alignment=TA_LEFT),
+        "body_justify": ParagraphStyle("BodyJ", parent=styles["Normal"], fontName="Helvetica",
+                                        fontSize=10, leading=15, textColor=black, spaceAfter=3, alignment=TA_JUSTIFY),
+        "skills_justify": ParagraphStyle("SkillsJ", parent=styles["Normal"], fontName="Helvetica",
+                                          fontSize=10, leading=17, textColor=black, spaceAfter=3, alignment=TA_JUSTIFY,
+                                          wordSpace=4),
         "bullet": ParagraphStyle("Bullet", parent=styles["Normal"], fontName="Helvetica",
                                   fontSize=10, leading=13, textColor=black, leftIndent=14,
                                   bulletIndent=2, spaceAfter=2, alignment=TA_LEFT),
@@ -310,10 +321,8 @@ def generate_cv_pdf(cv: dict) -> bytes:
     s = _pdf_styles()
     story = []
 
-    # Centered header (name + headline + contact)
+    # Centered header (name + contact only — headline moves to Objective)
     story.append(Paragraph(cv.get("full_name", "").upper(), s["name_center"]))
-    if cv.get("headline"):
-        story.append(Paragraph(cv["headline"], s["headline_center"]))
 
     contact = cv.get("contact", {}) or {}
     contact_parts = [contact.get(k, "") for k in ("email", "phone", "location", "linkedin", "website")]
@@ -323,16 +332,22 @@ def generate_cv_pdf(cv: dict) -> bytes:
 
     story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#E4E4E7"), spaceAfter=6))
 
-    # Summary
+    # Objective (the target role)
+    if cv.get("headline"):
+        story.append(Paragraph("OBJECTIVE", s["section"]))
+        story.append(Paragraph(f"Seeking the position of <b>{cv['headline']}</b>.", s["objective"]))
+
+    # Summary (justified)
     if cv.get("professional_summary"):
         story.append(Paragraph("PROFESSIONAL SUMMARY", s["section"]))
-        story.append(Paragraph(cv["professional_summary"], s["body"]))
+        story.append(Paragraph(cv["professional_summary"], s["body_justify"]))
 
-    # Skills: clean wrapping comma list (more breathing room)
+    # Skills: hyphen-prefixed, justified for even spacing
     skills = cv.get("core_skills") or []
     if skills:
         story.append(Paragraph("CORE SKILLS", s["section"]))
-        story.append(Paragraph(", ".join(skills), s["skills"]))
+        skills_text = "   ".join(f"-{sk}" for sk in skills)
+        story.append(Paragraph(skills_text, s["skills_justify"]))
 
     # Experience
     exp = cv.get("experience") or []

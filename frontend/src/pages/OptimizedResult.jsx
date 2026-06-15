@@ -123,23 +123,33 @@ export default function OptimizedResult() {
           <div className="border border-zinc-200 p-10 max-w-4xl mx-auto" data-testid="cv-preview">
             <div className="text-center">
               <div className="font-display font-black text-4xl tracking-tight uppercase">{cv.full_name}</div>
-              {cv.headline && <div className="text-zinc-600 mt-1">{cv.headline}</div>}
               {contactLine && <div className="font-mono-data text-xs text-zinc-500 mt-3">{contactLine}</div>}
             </div>
 
             <hr className="my-6 border-zinc-200" />
 
+            {cv.headline && (
+              <section className="mb-6">
+                <h3 className="font-display font-bold text-sm uppercase tracking-tight text-[#002FA7] mb-2">Objective</h3>
+                <p className="text-sm">Seeking the position of <span className="font-semibold">{cv.headline}</span>.</p>
+              </section>
+            )}
+
             {cv.professional_summary && (
               <section className="mb-6">
                 <h3 className="font-display font-bold text-sm uppercase tracking-tight text-[#002FA7] mb-2">Professional Summary</h3>
-                <p className="text-sm leading-relaxed">{cv.professional_summary}</p>
+                <p className="text-sm leading-relaxed text-justify">{cv.professional_summary}</p>
               </section>
             )}
 
             {cv.core_skills?.length > 0 && (
               <section className="mb-6">
                 <h3 className="font-display font-bold text-sm uppercase tracking-tight text-[#002FA7] mb-2">Core Skills</h3>
-                <p className="text-sm leading-7 text-zinc-800">{cv.core_skills.join(", ")}</p>
+                <p className="text-sm leading-7 text-zinc-800 text-justify">
+                  {cv.core_skills.map((sk, i) => (
+                    <span key={i} className="mr-4 whitespace-nowrap">-{sk}</span>
+                  ))}
+                </p>
               </section>
             )}
 
@@ -149,7 +159,7 @@ export default function OptimizedResult() {
                 {cv.experience.map((j, i) => (
                   <div key={i} className="mb-5">
                     <div className="font-display font-bold text-sm">{j.title} — {j.company}</div>
-                    <div className="font-mono-data text-xs text-zinc-500 italic mb-2">
+                    <div className="text-[15px] text-zinc-900 mb-2">
                       {[j.location, `${j.start_date} – ${j.end_date}`].filter(Boolean).join("  |  ")}
                     </div>
                     <ul className="list-disc pl-5 space-y-1 text-sm">
@@ -166,7 +176,7 @@ export default function OptimizedResult() {
                 {cv.education.map((e, i) => (
                   <div key={i} className="mb-2">
                     <div className="font-display font-bold text-sm">{e.degree} — {e.institution}</div>
-                    <div className="font-mono-data text-xs text-zinc-500">
+                    <div className="text-[15px] text-zinc-900">
                       {[e.location, e.end_date, e.details].filter(Boolean).join("  |  ")}
                     </div>
                   </div>
