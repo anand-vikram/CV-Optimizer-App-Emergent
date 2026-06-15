@@ -121,105 +121,133 @@ export default function OptimizedResult() {
 
         {tab === "cv" ? (
           <div className="border border-zinc-200 p-10 max-w-4xl mx-auto" data-testid="cv-preview">
+            {/* Centered header */}
             <div className="text-center">
-              <div className="font-display font-black text-4xl tracking-tight uppercase">{cv.full_name}</div>
-              {contactLine && <div className="font-mono-data text-xs text-zinc-500 mt-3">{contactLine}</div>}
+              <div className="font-display font-black text-5xl tracking-tight uppercase text-[#0A0A0A]">{cv.full_name}</div>
+              {contactLine && <div className="text-sm text-[#0A0A0A] mt-3">{contactLine}</div>}
+              {cv.contact?.website && <div className="text-sm text-[#0A0A0A] mt-1">{cv.contact.website}</div>}
             </div>
 
-            <hr className="my-6 border-zinc-200" />
-
-            {cv.headline && (
-              <section className="mb-6">
-                <h3 className="font-display font-bold text-sm uppercase tracking-tight text-[#002FA7] mb-2">Objective</h3>
-                <p className="text-sm">Seeking the position of <span className="font-semibold">{cv.headline}</span>.</p>
+            {/* Objective */}
+            {(cv.objective || cv.headline) && (
+              <section className="mt-6">
+                <h3 className="font-bold text-[12px] uppercase tracking-wider text-[#1F2937] pb-1 border-b border-[#9CA3AF] mb-3">Objective</h3>
+                <p className="text-[15px] leading-relaxed text-[#0A0A0A]">{cv.objective || `To contribute as ${cv.headline}.`}</p>
               </section>
             )}
 
+            {/* Summary */}
             {cv.professional_summary && (
-              <section className="mb-6">
-                <h3 className="font-display font-bold text-sm uppercase tracking-tight text-[#002FA7] mb-2">Professional Summary</h3>
-                <p className="text-sm leading-relaxed text-justify">{cv.professional_summary}</p>
+              <section className="mt-5">
+                <h3 className="font-bold text-[12px] uppercase tracking-wider text-[#1F2937] pb-1 border-b border-[#9CA3AF] mb-3">Professional Summary</h3>
+                <p className="text-[15px] leading-relaxed text-[#0A0A0A] text-justify">{cv.professional_summary}</p>
               </section>
             )}
 
-            {cv.core_skills?.length > 0 && (
-              <section className="mb-6">
-                <h3 className="font-display font-bold text-sm uppercase tracking-tight text-[#002FA7] mb-2">Core Skills</h3>
-                <p className="text-sm leading-7 text-zinc-800 text-justify">
-                  {cv.core_skills.map((sk, i) => (
-                    <span key={i} className="mr-4 whitespace-nowrap">-{sk}</span>
-                  ))}
-                </p>
-              </section>
-            )}
+            {/* Core Skills — 4-column grid */}
+            {(() => {
+              const groups = (cv.skill_groups && cv.skill_groups.length > 0)
+                ? cv.skill_groups
+                : (cv.core_skills?.length > 0 ? [{ category: "Core Competencies", items: cv.core_skills }] : []);
+              if (groups.length === 0) return null;
+              const cols = Math.min(4, groups.length);
+              return (
+                <section className="mt-5">
+                  <h3 className="font-bold text-[12px] uppercase tracking-wider text-[#1F2937] pb-1 border-b border-[#9CA3AF] mb-3">Core Skills</h3>
+                  <div className={`grid gap-6`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+                    {groups.slice(0, cols).map((g, gi) => (
+                      <div key={gi}>
+                        <div className="font-bold text-[11px] uppercase tracking-wider text-[#1F2937] mb-2">{g.category}</div>
+                        <ul className="space-y-1">
+                          {(g.items || []).map((it, ii) => (
+                            <li key={ii} className="text-[14px] text-[#0A0A0A] leading-snug">{it}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })()}
 
+            {/* Experience */}
             {cv.experience?.length > 0 && (
-              <section className="mb-6">
-                <h3 className="font-display font-bold text-sm uppercase tracking-tight text-[#002FA7] mb-3">Professional Experience</h3>
+              <section className="mt-5">
+                <h3 className="font-bold text-[12px] uppercase tracking-wider text-[#1F2937] pb-1 border-b border-[#9CA3AF] mb-3">Professional Experience</h3>
                 {cv.experience.map((j, i) => (
-                  <div key={i} className="mb-5">
-                    <div className="font-display font-bold text-sm">{j.title} — {j.company}</div>
-                    <div className="text-[15px] text-zinc-900 mb-2">
-                      {[j.location, `${j.start_date} – ${j.end_date}`].filter(Boolean).join("  |  ")}
+                  <div key={i} className="mb-5 last:mb-0">
+                    <div className="flex justify-between items-baseline gap-4">
+                      <div className="font-bold text-[15px] text-[#0A0A0A]">{j.title}</div>
+                      <div className="text-[14px] text-[#0A0A0A] whitespace-nowrap">{[j.start_date, j.end_date].filter(Boolean).join(" – ")}</div>
                     </div>
-                    <ul className="list-disc pl-5 space-y-1 text-sm">
-                      {(j.bullets||[]).map((b,bi)=>(<li key={bi}>{b}</li>))}
+                    {j.company && <div className="font-bold text-[14px] text-[#0A0A0A]">{j.company}</div>}
+                    {j.location && <div className="text-[14px] text-[#0A0A0A] mb-2">{j.location}</div>}
+                    <ul className="list-disc pl-5 space-y-1 text-[14px] text-[#0A0A0A] leading-relaxed">
+                      {(j.bullets || []).map((b, bi) => <li key={bi}>{b}</li>)}
                     </ul>
                   </div>
                 ))}
               </section>
             )}
 
+            {/* Education */}
             {cv.education?.length > 0 && (
-              <section className="mb-6">
-                <h3 className="font-display font-bold text-sm uppercase tracking-tight text-[#002FA7] mb-3">Education</h3>
+              <section className="mt-5">
+                <h3 className="font-bold text-[12px] uppercase tracking-wider text-[#1F2937] pb-1 border-b border-[#9CA3AF] mb-3">Education</h3>
                 {cv.education.map((e, i) => (
-                  <div key={i} className="mb-2">
-                    <div className="font-display font-bold text-sm">{e.degree} — {e.institution}</div>
-                    <div className="text-[15px] text-zinc-900">
-                      {[e.location, e.end_date, e.details].filter(Boolean).join("  |  ")}
+                  <div key={i} className="mb-3 last:mb-0">
+                    <div className="flex justify-between items-baseline gap-4">
+                      <div className="font-bold text-[15px] text-[#0A0A0A]">{e.degree}</div>
+                      <div className="text-[14px] text-[#0A0A0A] whitespace-nowrap">{e.end_date || e.start_date}</div>
                     </div>
+                    <div className="text-[14px] text-[#0A0A0A]">{[e.institution, e.location].filter(Boolean).join(" | ")}</div>
+                    {e.details && <div className="text-[14px] text-[#0A0A0A]">{e.details}</div>}
                   </div>
                 ))}
               </section>
             )}
 
+            {/* Certifications */}
             {cv.certifications?.length > 0 && (
-              <section className="mb-6">
-                <h3 className="font-display font-bold text-sm uppercase tracking-tight text-[#002FA7] mb-2">Certifications</h3>
-                <ul className="space-y-1.5 text-sm">
+              <section className="mt-5">
+                <h3 className="font-bold text-[12px] uppercase tracking-wider text-[#1F2937] pb-1 border-b border-[#9CA3AF] mb-3">Certifications</h3>
+                <div className="space-y-1.5">
                   {cv.certifications.map((c, i) => {
                     const isObj = c && typeof c === "object";
                     const name = isObj ? c.name : c;
                     const institute = isObj ? c.institute : "";
                     const year = isObj ? c.year : "";
                     return (
-                      <li key={i} className="leading-snug">
-                        <span className="font-semibold">{name}</span>
-                        {institute && <span className="text-zinc-600">  —  {institute}</span>}
-                        {year && <span className="text-zinc-500 italic ml-1">({year})</span>}
-                      </li>
+                      <div key={i} className="flex justify-between items-baseline gap-4">
+                        <div className="text-[14px] text-[#0A0A0A]">
+                          <span className="font-semibold">{name}</span>
+                          {institute && <span> | {institute}</span>}
+                        </div>
+                        {year && <div className="text-[14px] text-[#0A0A0A] whitespace-nowrap">{year}</div>}
+                      </div>
                     );
                   })}
-                </ul>
+                </div>
               </section>
             )}
 
+            {/* Projects */}
             {cv.projects?.length > 0 && (
-              <section className="mb-6">
-                <h3 className="font-display font-bold text-sm uppercase tracking-tight text-[#002FA7] mb-3">Projects</h3>
+              <section className="mt-5">
+                <h3 className="font-bold text-[12px] uppercase tracking-wider text-[#1F2937] pb-1 border-b border-[#9CA3AF] mb-3">Projects</h3>
                 {cv.projects.map((p, i) => (
-                  <div key={i} className="mb-3">
-                    <div className="font-display font-bold text-sm">{p.name}</div>
-                    <div className="text-sm text-zinc-700">{p.description}</div>
+                  <div key={i} className="mb-3 last:mb-0">
+                    <div className="font-bold text-[14px] text-[#0A0A0A]">{p.name}</div>
+                    {p.description && <div className="text-[14px] text-[#0A0A0A]">{p.description}</div>}
                   </div>
                 ))}
               </section>
             )}
 
+            {/* Publications */}
             {cv.publications?.length > 0 && (
-              <section>
-                <h3 className="font-display font-bold text-sm uppercase tracking-tight text-[#002FA7] mb-3">Publications</h3>
+              <section className="mt-5">
+                <h3 className="font-bold text-[12px] uppercase tracking-wider text-[#1F2937] pb-1 border-b border-[#9CA3AF] mb-3">Publications</h3>
                 {cv.publications.map((p, i) => {
                   const isObj = p && typeof p === "object";
                   const title = isObj ? p.title : p;
@@ -227,16 +255,12 @@ export default function OptimizedResult() {
                   const year = isObj ? p.year : "";
                   const desc = isObj ? p.description : "";
                   return (
-                    <div key={i} className="mb-3">
-                      <div className="text-sm">
-                        <span className="font-semibold">{title}</span>
-                        {(publisher || year) && (
-                          <span className="text-zinc-500 italic ml-1">
-                            — {[publisher, year].filter(Boolean).join(", ")}
-                          </span>
-                        )}
+                    <div key={i} className="mb-3 last:mb-0">
+                      <div className="flex justify-between items-baseline gap-4">
+                        <div className="font-semibold text-[14px] text-[#0A0A0A]">{title}</div>
+                        <div className="text-[14px] text-[#0A0A0A] whitespace-nowrap">{[publisher, year].filter(Boolean).join(", ")}</div>
                       </div>
-                      {desc && <div className="text-sm text-zinc-700">{desc}</div>}
+                      {desc && <div className="text-[14px] text-[#0A0A0A]">{desc}</div>}
                     </div>
                   );
                 })}

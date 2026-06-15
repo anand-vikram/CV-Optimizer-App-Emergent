@@ -1,16 +1,35 @@
-"""CV parsing (PDF/DOCX/TXT) and document generation (PDF/DOCX) — refined v2."""
+"""CV parsing (PDF/DOCX/TXT) and document generation (PDF/DOCX) — v3 professional template.
+
+Matches the reference template:
+- Centered name + centered contact line
+- Dark-grey ALL-CAPS section headings with thin horizontal rule beneath
+- 4-column categorized Core Skills grid
+- Job: title (left) + dates (right) on one row; bold company on next line; location below
+- Education: degree (left) + year (right) on one row; institution | location on next line
+"""
 import io
-from typing import Any
+from typing import Any, List
 from pypdf import PdfReader
 from docx import Document
-from docx.shared import Pt, Inches, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Pt, Inches, RGBColor, Cm
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT, WD_TAB_LEADER
+from docx.enum.table import WD_ALIGN_VERTICAL
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib.colors import HexColor, black
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
+
+
+HEADING_COLOR = HexColor("#1F2937")   # deep charcoal
+RULE_COLOR = HexColor("#9CA3AF")      # mid grey for the thin rule
+BODY_COLOR = HexColor("#0A0A0A")
+
+DOCX_HEADING_RGB = RGBColor(0x1F, 0x29, 0x37)
+DOCX_BODY_RGB = RGBColor(0x0A, 0x0A, 0x0A)
 
 
 # ===================== Parsing =====================
@@ -69,178 +88,293 @@ def _norm_pub(p: Any) -> dict:
     return {"title": str(p).strip(), "publisher": "", "year": "", "description": ""}
 
 
-# ===================== DOCX generation =====================
+def _skill_groups(cv: dict) -> List[dict]:
+    """Return list of {category, items}. Falls back to grouping core_skills under 'Core Competencies'."""
+    groups = cv.get("skill_groups") or []
+    norm = []
+    for g in groups:
+        if isinstance(g, dict):
+            cat = (g.get("category") or "").strip()
+            items = [str(x).strip() for x in (g.get("items") or []) if str(x).strip()]
+            if cat and items:
+                norm.append({"category": cat, "items": items})
+    if norm:
+        return norm
+    # Backwards-compat: flat core_skills list
+    flat = cv.get("core_skills") or []
+    flat = [str(x).strip() for x in flat if str(x).strip()]
+    if flat:
+        return [{"category": "Core Competencies", "items": flat}]
+    return []
 
-def _add_section_heading(doc: Document, text: str):
+
+# ===================== DOCX helpers =====================
+
+def _set_cell_border(cell, **kwargs):
+    tc_pr = cell._tc.get_or_add_tcPr()
+    tc_borders = OxmlElement("w:tcBorders")
+    for edge in ("top", "left", "bottom", "right"):
+        if edge in kwargs:
+            b = OxmlElement(f"w:{edge}")
+            for k, v in kwargs[edge].items():
+                b.set(qn(f"w:{k}"), str(v))
+            tc_borders.append(b)
+    tc_pr.append(tc_borders)
+
+
+def _section_heading_docx(doc: Document, text: str):
     p = doc.add_paragraph()
     run = p.add_run(text.upper())
     run.bold = True
-    run.font.size = Pt(11)
-    run.font.color.rgb = RGBColor(0x00, 0x2F, 0xA7)
-    p.paragraph_format.space_before = Pt(10)
-    p.paragraph_format.space_after = Pt(2)
-    rule = doc.add_paragraph()
-    rule_run = rule.add_run("_" * 90)
-    rule_run.font.size = Pt(6)
-    rule_run.font.color.rgb = RGBColor(0xCC, 0xCC, 0xCC)
-    rule.paragraph_format.space_after = Pt(4)
+    run.font.size = Pt(12)
+    run.font.color.rgb = DOCX_HEADING_RGB
+    p.paragraph_format.space_before = Pt(12)
+    p.paragraph_format.space_after = Pt(0)
+    # Apply a bottom border to act as the rule
+    p_pr = p._p.get_or_add_pPr()
+    p_bdr = OxmlElement("w:pBdr")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), "10")
+    bottom.set(qn("w:space"), "1")
+    bottom.set(qn("w:color"), "1F2937")
+    p_bdr.append(bottom)
+    p_pr.append(p_bdr)
 
+
+def _title_with_right_tab(doc: Document, left_text: str, left_bold: bool, right_text: str,
+                          font_size: int = 11):
+    """Paragraph with a right-aligned tab stop for placing dates/years on the right edge."""
+    p = doc.add_paragraph()
+    # right tab stop at ~6.5"
+    p.paragraph_format.tab_stops.add_tab_stop(Inches(7.0), WD_TAB_ALIGNMENT.RIGHT)
+    left_run = p.add_run(left_text)
+    left_run.bold = left_bold
+    left_run.font.size = Pt(font_size)
+    left_run.font.color.rgb = DOCX_BODY_RGB
+    if right_text:
+        tab_run = p.add_run("\t")
+        right_run = p.add_run(right_text)
+        right_run.font.size = Pt(font_size)
+        right_run.font.color.rgb = DOCX_BODY_RGB
+    p.paragraph_format.space_after = Pt(0)
+    return p
+
+
+# ===================== DOCX generation =====================
 
 def generate_cv_docx(cv: dict) -> bytes:
     doc = Document()
     for section in doc.sections:
         section.top_margin = Inches(0.6)
         section.bottom_margin = Inches(0.6)
-        section.left_margin = Inches(0.7)
-        section.right_margin = Inches(0.7)
+        section.left_margin = Inches(0.75)
+        section.right_margin = Inches(0.75)
 
-    # --- Centered Header (name + contact only — headline moves to Objective) ---
+    # ---- Header: centered name + contact ----
     name_p = doc.add_paragraph()
     name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     name_run = name_p.add_run(cv.get("full_name", "").upper())
     name_run.bold = True
-    name_run.font.size = Pt(22)
-    name_run.font.color.rgb = RGBColor(0x0A, 0x0A, 0x0A)
+    name_run.font.size = Pt(28)
+    name_run.font.color.rgb = DOCX_BODY_RGB
     name_p.paragraph_format.space_after = Pt(2)
 
     contact = cv.get("contact", {}) or {}
-    contact_parts = [contact.get(k, "") for k in ("email", "phone", "location", "linkedin", "website")]
-    contact_parts = [p for p in contact_parts if p]
-    if contact_parts:
+    primary = [contact.get(k, "") for k in ("email", "phone", "location", "linkedin")]
+    primary = [p for p in primary if p]
+    if primary:
         c_p = doc.add_paragraph()
         c_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        c_run = c_p.add_run("  |  ".join(contact_parts))
-        c_run.font.size = Pt(9)
-        c_run.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
-        c_p.paragraph_format.space_after = Pt(2)
+        c_run = c_p.add_run(" | ".join(primary))
+        c_run.font.size = Pt(10)
+        c_run.font.color.rgb = DOCX_BODY_RGB
+        c_p.paragraph_format.space_after = Pt(0)
+    if contact.get("website"):
+        w_p = doc.add_paragraph()
+        w_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        w_run = w_p.add_run(contact["website"])
+        w_run.font.size = Pt(10)
+        w_run.font.color.rgb = DOCX_BODY_RGB
+        w_p.paragraph_format.space_after = Pt(4)
 
-    # --- Objective (target role) ---
-    if cv.get("headline"):
-        _add_section_heading(doc, "Objective")
-        obj_p = doc.add_paragraph()
-        seek = obj_p.add_run("Seeking the position of ")
-        seek.font.size = Pt(11)
-        role = obj_p.add_run(cv["headline"])
-        role.bold = True
-        role.font.size = Pt(11)
-        period = obj_p.add_run(".")
-        period.font.size = Pt(11)
-        obj_p.paragraph_format.space_after = Pt(6)
+    # ---- Objective ----
+    objective = (cv.get("objective") or "").strip()
+    if not objective and cv.get("headline"):
+        objective = f"To contribute as {cv['headline']}."
+    if objective:
+        _section_heading_docx(doc, "Objective")
+        p = doc.add_paragraph(objective)
+        for r in p.runs:
+            r.font.size = Pt(11)
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(2)
 
-    # --- Summary (justified) ---
+    # ---- Professional Summary ----
     if cv.get("professional_summary"):
-        _add_section_heading(doc, "Professional Summary")
-        s = doc.add_paragraph(cv["professional_summary"])
-        s.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        for r in s.runs:
-            r.font.size = Pt(10)
+        _section_heading_docx(doc, "Professional Summary")
+        p = doc.add_paragraph(cv["professional_summary"])
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        for r in p.runs:
+            r.font.size = Pt(11)
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(2)
 
-    # --- Skills (hyphen-prefixed, justified) ---
-    skills = cv.get("core_skills") or []
-    if skills:
-        _add_section_heading(doc, "Core Skills")
-        skills_text = "   ".join(f"-{sk}" for sk in skills)
-        s = doc.add_paragraph(skills_text)
-        s.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        s.paragraph_format.line_spacing = 1.35
-        for r in s.runs:
-            r.font.size = Pt(10)
+    # ---- Core Skills (4-column grid) ----
+    groups = _skill_groups(cv)
+    if groups:
+        _section_heading_docx(doc, "Core Skills")
+        ncols = min(4, max(1, len(groups)))
+        # spacer paragraph
+        sp = doc.add_paragraph()
+        sp.paragraph_format.space_before = Pt(4)
+        sp.paragraph_format.space_after = Pt(0)
+        table = doc.add_table(rows=2, cols=ncols)
+        table.autofit = False
+        # Distribute width
+        page_width = Inches(7.0)
+        col_w = Inches(7.0 / ncols)
+        for col in table.columns:
+            col.width = col_w
+        # Row 1: bold headers
+        for i in range(ncols):
+            cell = table.rows[0].cells[i]
+            cell.width = col_w
+            cell.text = ""
+            p = cell.paragraphs[0]
+            run = p.add_run(groups[i]["category"].upper())
+            run.bold = True
+            run.font.size = Pt(10)
+            run.font.color.rgb = DOCX_HEADING_RGB
+            p.paragraph_format.space_after = Pt(2)
+            _set_cell_border(cell,
+                             top={"val": "nil"}, left={"val": "nil"},
+                             right={"val": "nil"}, bottom={"val": "nil"})
+        # Row 2: items
+        for i in range(ncols):
+            cell = table.rows[1].cells[i]
+            cell.width = col_w
+            cell.text = ""
+            p0 = cell.paragraphs[0]
+            for j, item in enumerate(groups[i]["items"]):
+                p = p0 if j == 0 else cell.add_paragraph()
+                run = p.add_run(item)
+                run.font.size = Pt(10)
+                run.font.color.rgb = DOCX_BODY_RGB
+                p.paragraph_format.space_after = Pt(1)
+            _set_cell_border(cell,
+                             top={"val": "nil"}, left={"val": "nil"},
+                             right={"val": "nil"}, bottom={"val": "nil"})
 
-    # --- Experience ---
+    # ---- Professional Experience ----
     exp = cv.get("experience") or []
     if exp:
-        _add_section_heading(doc, "Professional Experience")
-        for job in exp:
-            p = doc.add_paragraph()
-            t = p.add_run(f"{job.get('title','')} — {job.get('company','')}")
-            t.bold = True
-            t.font.size = Pt(11)
-            dates = f"{job.get('start_date','')} – {job.get('end_date','')}"
-            loc = job.get("location", "")
-            sub = doc.add_paragraph()
-            sub_run = sub.add_run(f"{loc}  |  {dates}" if loc else dates)
-            sub_run.font.size = Pt(11)
-            sub_run.font.color.rgb = RGBColor(0x0A, 0x0A, 0x0A)
-            sub.paragraph_format.space_after = Pt(3)
+        _section_heading_docx(doc, "Professional Experience")
+        for idx, job in enumerate(exp):
+            spacer = doc.add_paragraph()
+            spacer.paragraph_format.space_before = Pt(6 if idx == 0 else 8)
+            spacer.paragraph_format.space_after = Pt(0)
+            # Row 1: title (left, bold) + dates (right)
+            dates = f"{job.get('start_date','')} – {job.get('end_date','')}".strip(" –")
+            _title_with_right_tab(doc, job.get("title", ""), True, dates, font_size=11)
+            # Row 2: company (bold)
+            if job.get("company"):
+                cp = doc.add_paragraph()
+                cp_run = cp.add_run(job["company"])
+                cp_run.bold = True
+                cp_run.font.size = Pt(11)
+                cp_run.font.color.rgb = DOCX_BODY_RGB
+                cp.paragraph_format.space_after = Pt(0)
+            # Row 3: location
+            if job.get("location"):
+                lp = doc.add_paragraph()
+                lp_run = lp.add_run(job["location"])
+                lp_run.font.size = Pt(11)
+                lp_run.font.color.rgb = DOCX_BODY_RGB
+                lp.paragraph_format.space_after = Pt(3)
+            # Bullets
             for b in job.get("bullets", []):
                 bp = doc.add_paragraph(b, style="List Bullet")
                 for r in bp.runs:
-                    r.font.size = Pt(10)
+                    r.font.size = Pt(10.5)
+                bp.paragraph_format.space_after = Pt(2)
 
-    # --- Education ---
+    # ---- Education ----
     edu = cv.get("education") or []
     if edu:
-        _add_section_heading(doc, "Education")
+        _section_heading_docx(doc, "Education")
         for e in edu:
-            p = doc.add_paragraph()
-            t = p.add_run(f"{e.get('degree','')} — {e.get('institution','')}")
-            t.bold = True
-            t.font.size = Pt(11)
-            dates = e.get("end_date", "") or ""
-            details = e.get("details", "") or ""
-            sub_text = "  |  ".join([x for x in [e.get("location", ""), dates, details] if x])
-            if sub_text:
-                sub = doc.add_paragraph()
-                sub_run = sub.add_run(sub_text)
-                sub_run.font.size = Pt(11)
-                sub_run.font.color.rgb = RGBColor(0x0A, 0x0A, 0x0A)
+            spacer = doc.add_paragraph()
+            spacer.paragraph_format.space_before = Pt(4)
+            spacer.paragraph_format.space_after = Pt(0)
+            # Row 1: degree (left, bold) + year (right)
+            year = e.get("end_date", "") or e.get("start_date", "")
+            _title_with_right_tab(doc, e.get("degree", ""), True, year, font_size=11)
+            # Row 2: institution | location
+            inst_parts = [x for x in [e.get("institution", ""), e.get("location", "")] if x]
+            if inst_parts:
+                ip = doc.add_paragraph()
+                ip_run = ip.add_run(" | ".join(inst_parts))
+                ip_run.font.size = Pt(11)
+                ip_run.font.color.rgb = DOCX_BODY_RGB
+                ip.paragraph_format.space_after = Pt(0)
+            if e.get("details"):
+                dp = doc.add_paragraph()
+                dp_run = dp.add_run(e["details"])
+                dp_run.font.size = Pt(10.5)
+                dp_run.font.color.rgb = DOCX_BODY_RGB
+                dp.paragraph_format.space_after = Pt(2)
 
-    # --- Certifications (ONE per line, name — institute, year) ---
+    # ---- Certifications ----
     certs = [_norm_cert(c) for c in (cv.get("certifications") or [])]
     certs = [c for c in certs if c["name"]]
     if certs:
-        _add_section_heading(doc, "Certifications")
+        _section_heading_docx(doc, "Certifications")
+        sp = doc.add_paragraph()
+        sp.paragraph_format.space_before = Pt(4)
+        sp.paragraph_format.space_after = Pt(0)
         for c in certs:
-            p = doc.add_paragraph()
-            p.paragraph_format.space_after = Pt(2)
-            name_run = p.add_run(c["name"])
-            name_run.bold = True
-            name_run.font.size = Pt(10)
+            line_text = c["name"]
             if c["institute"]:
-                inst = p.add_run(f"  —  {c['institute']}")
-                inst.font.size = Pt(10)
-                inst.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
-            if c["year"]:
-                yr = p.add_run(f"  ({c['year']})")
-                yr.font.size = Pt(9)
-                yr.italic = True
-                yr.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
+                line_text += f" | {c['institute']}"
+            _title_with_right_tab(doc, line_text, False, c["year"], font_size=11)
 
-    # --- Projects (hands-on work only) ---
+    # ---- Projects ----
     projects = cv.get("projects") or []
     if projects:
-        _add_section_heading(doc, "Projects")
+        _section_heading_docx(doc, "Projects")
         for proj in projects:
+            sp = doc.add_paragraph()
+            sp.paragraph_format.space_before = Pt(4)
+            sp.paragraph_format.space_after = Pt(0)
             p = doc.add_paragraph()
             t = p.add_run(proj.get("name", ""))
             t.bold = True
-            t.font.size = Pt(10)
-            desc = doc.add_paragraph(proj.get("description", ""))
-            for r in desc.runs:
-                r.font.size = Pt(10)
+            t.font.size = Pt(11)
+            t.font.color.rgb = DOCX_BODY_RGB
+            p.paragraph_format.space_after = Pt(0)
+            if proj.get("description"):
+                d = doc.add_paragraph(proj["description"])
+                for r in d.runs:
+                    r.font.size = Pt(11)
+                d.paragraph_format.space_after = Pt(2)
 
-    # --- Publications (books, papers, articles) ---
+    # ---- Publications ----
     pubs = [_norm_pub(p) for p in (cv.get("publications") or [])]
     pubs = [p for p in pubs if p["title"]]
     if pubs:
-        _add_section_heading(doc, "Publications")
+        _section_heading_docx(doc, "Publications")
         for pub in pubs:
-            p = doc.add_paragraph()
-            p.paragraph_format.space_after = Pt(2)
-            t = p.add_run(pub["title"])
-            t.bold = True
-            t.font.size = Pt(10)
-            meta_bits = [x for x in [pub["publisher"], pub["year"]] if x]
-            if meta_bits:
-                meta = p.add_run(f"  —  {', '.join(meta_bits)}")
-                meta.font.size = Pt(9)
-                meta.italic = True
-                meta.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
+            sp = doc.add_paragraph()
+            sp.paragraph_format.space_before = Pt(4)
+            sp.paragraph_format.space_after = Pt(0)
+            meta = ", ".join([x for x in [pub["publisher"], pub["year"]] if x])
+            _title_with_right_tab(doc, pub["title"], True, meta, font_size=11)
             if pub["description"]:
                 d = doc.add_paragraph(pub["description"])
-                d.paragraph_format.space_after = Pt(4)
                 for r in d.runs:
-                    r.font.size = Pt(10)
+                    r.font.size = Pt(11)
+                d.paragraph_format.space_after = Pt(2)
 
     buf = io.BytesIO()
     doc.save(buf)
@@ -257,10 +391,11 @@ def generate_cover_letter_docx(text: str, candidate_name: str) -> bytes:
 
     if candidate_name:
         head = doc.add_paragraph()
+        head.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run = head.add_run(candidate_name.upper())
         run.bold = True
-        run.font.size = Pt(16)
-        head.paragraph_format.space_after = Pt(12)
+        run.font.size = Pt(18)
+        head.paragraph_format.space_after = Pt(14)
 
     for para in text.split("\n\n"):
         para = para.strip()
@@ -280,133 +415,191 @@ def generate_cover_letter_docx(text: str, candidate_name: str) -> bytes:
 
 def _pdf_styles():
     styles = getSampleStyleSheet()
-    blue = HexColor("#002FA7")
-    grey = HexColor("#52525B")
     return {
         "name_center": ParagraphStyle("NameC", parent=styles["Title"], fontName="Helvetica-Bold",
-                                       fontSize=22, leading=26, textColor=black, alignment=TA_CENTER, spaceAfter=2),
-        "headline_center": ParagraphStyle("HeadC", parent=styles["Normal"], fontName="Helvetica",
-                                           fontSize=11, leading=14, textColor=grey, alignment=TA_CENTER, spaceAfter=4),
+                                       fontSize=26, leading=30, textColor=BODY_COLOR,
+                                       alignment=TA_CENTER, spaceAfter=2),
         "contact_center": ParagraphStyle("ContactC", parent=styles["Normal"], fontName="Helvetica",
-                                          fontSize=9, leading=12, textColor=grey, alignment=TA_CENTER, spaceAfter=8),
+                                          fontSize=10, leading=13, textColor=BODY_COLOR,
+                                          alignment=TA_CENTER, spaceAfter=2),
         "section": ParagraphStyle("Section", parent=styles["Heading2"], fontName="Helvetica-Bold",
-                                   fontSize=11, leading=14, textColor=blue, spaceBefore=10,
-                                   spaceAfter=4, alignment=TA_LEFT),
-        "objective": ParagraphStyle("Objective", parent=styles["Normal"], fontName="Helvetica-Bold",
-                                     fontSize=11, leading=15, textColor=black, spaceAfter=8, alignment=TA_LEFT),
-        "jobtitle": ParagraphStyle("JobTitle", parent=styles["Normal"], fontName="Helvetica-Bold",
-                                    fontSize=11, leading=14, textColor=black, spaceAfter=1),
-        "jobsub": ParagraphStyle("JobSub", parent=styles["Normal"], fontName="Helvetica",
-                                  fontSize=11, leading=14, textColor=black, spaceAfter=4),
+                                   fontSize=12, leading=15, textColor=HEADING_COLOR, spaceBefore=12,
+                                   spaceAfter=0, alignment=TA_LEFT),
+        "objective": ParagraphStyle("Objective", parent=styles["Normal"], fontName="Helvetica",
+                                     fontSize=11, leading=15, textColor=BODY_COLOR, spaceAfter=2, alignment=TA_LEFT),
+        "summary": ParagraphStyle("Summary", parent=styles["Normal"], fontName="Helvetica",
+                                   fontSize=11, leading=15, textColor=BODY_COLOR, spaceAfter=2, alignment=TA_JUSTIFY),
+        "skill_header": ParagraphStyle("SkillH", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                        fontSize=10, leading=13, textColor=HEADING_COLOR, spaceAfter=4, alignment=TA_LEFT),
+        "skill_item": ParagraphStyle("SkillI", parent=styles["Normal"], fontName="Helvetica",
+                                      fontSize=10, leading=13, textColor=BODY_COLOR, spaceAfter=2, alignment=TA_LEFT),
+        "job_title": ParagraphStyle("JT", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                     fontSize=11.5, leading=14, textColor=BODY_COLOR, spaceAfter=0, alignment=TA_LEFT),
+        "job_date_right": ParagraphStyle("JD", parent=styles["Normal"], fontName="Helvetica",
+                                          fontSize=11, leading=14, textColor=BODY_COLOR, spaceAfter=0, alignment=TA_RIGHT),
+        "company": ParagraphStyle("Co", parent=styles["Normal"], fontName="Helvetica-Bold",
+                                   fontSize=11, leading=14, textColor=BODY_COLOR, spaceAfter=0, alignment=TA_LEFT),
+        "location": ParagraphStyle("Loc", parent=styles["Normal"], fontName="Helvetica",
+                                    fontSize=11, leading=14, textColor=BODY_COLOR, spaceAfter=4, alignment=TA_LEFT),
+        "bullet": ParagraphStyle("Bul", parent=styles["Normal"], fontName="Helvetica",
+                                  fontSize=10.5, leading=14, textColor=BODY_COLOR, leftIndent=14,
+                                  bulletIndent=2, spaceAfter=2, alignment=TA_JUSTIFY),
         "body": ParagraphStyle("Body", parent=styles["Normal"], fontName="Helvetica",
-                                fontSize=10, leading=14, textColor=black, spaceAfter=3, alignment=TA_LEFT),
-        "body_justify": ParagraphStyle("BodyJ", parent=styles["Normal"], fontName="Helvetica",
-                                        fontSize=10, leading=15, textColor=black, spaceAfter=3, alignment=TA_JUSTIFY),
-        "skills_justify": ParagraphStyle("SkillsJ", parent=styles["Normal"], fontName="Helvetica",
-                                          fontSize=10, leading=17, textColor=black, spaceAfter=3, alignment=TA_JUSTIFY,
-                                          wordSpace=4),
-        "bullet": ParagraphStyle("Bullet", parent=styles["Normal"], fontName="Helvetica",
-                                  fontSize=10, leading=13, textColor=black, leftIndent=14,
-                                  bulletIndent=2, spaceAfter=2, alignment=TA_LEFT),
-        "cert_line": ParagraphStyle("CertLine", parent=styles["Normal"], fontName="Helvetica",
-                                     fontSize=10, leading=14, textColor=black, spaceAfter=3, alignment=TA_LEFT),
+                                fontSize=11, leading=14, textColor=BODY_COLOR, spaceAfter=3, alignment=TA_LEFT),
     }
+
+
+def _section(story, s, title):
+    story.append(Paragraph(title.upper(), s["section"]))
+    story.append(HRFlowable(width="100%", thickness=1.0, color=HEADING_COLOR,
+                            spaceBefore=1, spaceAfter=6))
+
+
+def _two_col_row(left_para, right_para, page_width):
+    """Title (left) + Date (right) row using a borderless table."""
+    t = Table([[left_para, right_para]], colWidths=[page_width * 0.65, page_width * 0.35])
+    t.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return t
 
 
 def generate_cv_pdf(cv: dict) -> bytes:
     buf = io.BytesIO()
+    LEFT = 0.75 * inch
+    RIGHT = 0.75 * inch
+    page_w = LETTER[0] - LEFT - RIGHT
     doc = SimpleDocTemplate(buf, pagesize=LETTER,
-                            leftMargin=0.6 * inch, rightMargin=0.6 * inch,
-                            topMargin=0.5 * inch, bottomMargin=0.5 * inch)
+                            leftMargin=LEFT, rightMargin=RIGHT,
+                            topMargin=0.55 * inch, bottomMargin=0.55 * inch)
     s = _pdf_styles()
     story = []
 
-    # Centered header (name + contact only — headline moves to Objective)
+    # Centered header
     story.append(Paragraph(cv.get("full_name", "").upper(), s["name_center"]))
-
     contact = cv.get("contact", {}) or {}
-    contact_parts = [contact.get(k, "") for k in ("email", "phone", "location", "linkedin", "website")]
-    contact_parts = [p for p in contact_parts if p]
-    if contact_parts:
-        story.append(Paragraph("  |  ".join(contact_parts), s["contact_center"]))
+    primary = [contact.get(k, "") for k in ("email", "phone", "location", "linkedin")]
+    primary = [p for p in primary if p]
+    if primary:
+        story.append(Paragraph(" | ".join(primary), s["contact_center"]))
+    if contact.get("website"):
+        story.append(Paragraph(contact["website"], s["contact_center"]))
+    story.append(Spacer(1, 6))
 
-    story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#E4E4E7"), spaceAfter=6))
+    # Objective
+    objective = (cv.get("objective") or "").strip()
+    if not objective and cv.get("headline"):
+        objective = f"To contribute as {cv['headline']}."
+    if objective:
+        _section(story, s, "Objective")
+        story.append(Paragraph(objective, s["objective"]))
 
-    # Objective (the target role)
-    if cv.get("headline"):
-        story.append(Paragraph("OBJECTIVE", s["section"]))
-        story.append(Paragraph(f"Seeking the position of <b>{cv['headline']}</b>.", s["objective"]))
-
-    # Summary (justified)
+    # Summary
     if cv.get("professional_summary"):
-        story.append(Paragraph("PROFESSIONAL SUMMARY", s["section"]))
-        story.append(Paragraph(cv["professional_summary"], s["body_justify"]))
+        _section(story, s, "Professional Summary")
+        story.append(Paragraph(cv["professional_summary"], s["summary"]))
 
-    # Skills: hyphen-prefixed, justified for even spacing
-    skills = cv.get("core_skills") or []
-    if skills:
-        story.append(Paragraph("CORE SKILLS", s["section"]))
-        skills_text = "   ".join(f"-{sk}" for sk in skills)
-        story.append(Paragraph(skills_text, s["skills_justify"]))
+    # Core Skills 4-col grid
+    groups = _skill_groups(cv)
+    if groups:
+        _section(story, s, "Core Skills")
+        ncols = min(4, max(1, len(groups)))
+        col_w = page_w / ncols
+        # build header row and items row
+        header_cells = [Paragraph(g["category"].upper(), s["skill_header"]) for g in groups[:ncols]]
+        item_cells = []
+        for g in groups[:ncols]:
+            paras = [Paragraph(it, s["skill_item"]) for it in g["items"]]
+            item_cells.append(paras)
+        t = Table([header_cells, item_cells], colWidths=[col_w] * ncols)
+        t.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 2))
 
     # Experience
     exp = cv.get("experience") or []
     if exp:
-        story.append(Paragraph("PROFESSIONAL EXPERIENCE", s["section"]))
-        for job in exp:
-            story.append(Paragraph(f"{job.get('title','')} &mdash; {job.get('company','')}", s["jobtitle"]))
-            dates = f"{job.get('start_date','')} &ndash; {job.get('end_date','')}"
-            loc = job.get("location", "")
-            sub = f"{loc} &nbsp;|&nbsp; {dates}" if loc else dates
-            story.append(Paragraph(sub, s["jobsub"]))
+        _section(story, s, "Professional Experience")
+        for idx, job in enumerate(exp):
+            if idx > 0:
+                story.append(Spacer(1, 6))
+            dates = f"{job.get('start_date','')} – {job.get('end_date','')}".strip(" –")
+            left = Paragraph(job.get("title", ""), s["job_title"])
+            right = Paragraph(dates, s["job_date_right"])
+            story.append(_two_col_row(left, right, page_w))
+            if job.get("company"):
+                story.append(Paragraph(job["company"], s["company"]))
+            if job.get("location"):
+                story.append(Paragraph(job["location"], s["location"]))
+            else:
+                story.append(Spacer(1, 2))
             for b in job.get("bullets", []):
                 story.append(Paragraph(b, s["bullet"], bulletText="•"))
-            story.append(Spacer(1, 4))
 
     # Education
     edu = cv.get("education") or []
     if edu:
-        story.append(Paragraph("EDUCATION", s["section"]))
-        for e in edu:
-            story.append(Paragraph(f"{e.get('degree','')} &mdash; {e.get('institution','')}", s["jobtitle"]))
-            sub_parts = [x for x in [e.get("location", ""), e.get("end_date", ""), e.get("details", "")] if x]
-            if sub_parts:
-                story.append(Paragraph(" &nbsp;|&nbsp; ".join(sub_parts), s["jobsub"]))
+        _section(story, s, "Education")
+        for idx, e in enumerate(edu):
+            if idx > 0:
+                story.append(Spacer(1, 4))
+            year = e.get("end_date", "") or e.get("start_date", "")
+            left = Paragraph(e.get("degree", ""), s["job_title"])
+            right = Paragraph(year, s["job_date_right"])
+            story.append(_two_col_row(left, right, page_w))
+            inst_parts = [x for x in [e.get("institution", ""), e.get("location", "")] if x]
+            if inst_parts:
+                story.append(Paragraph(" | ".join(inst_parts), s["location"]))
+            if e.get("details"):
+                story.append(Paragraph(e["details"], s["body"]))
 
-    # Certifications — one per line: bold name — institute (year)
+    # Certifications
     certs = [_norm_cert(c) for c in (cv.get("certifications") or [])]
     certs = [c for c in certs if c["name"]]
     if certs:
-        story.append(Paragraph("CERTIFICATIONS", s["section"]))
+        _section(story, s, "Certifications")
         for c in certs:
-            line = f"<b>{c['name']}</b>"
+            left_text = c["name"]
             if c["institute"]:
-                line += f' &nbsp;&mdash;&nbsp; <font color="#52525B">{c["institute"]}</font>'
-            if c["year"]:
-                line += f' &nbsp;<font color="#52525B"><i>({c["year"]})</i></font>'
-            story.append(Paragraph(line, s["cert_line"]))
+                left_text += f" | {c['institute']}"
+            left = Paragraph(f"<b>{left_text}</b>", s["job_title"])
+            right = Paragraph(c["year"], s["job_date_right"])
+            story.append(_two_col_row(left, right, page_w))
+            story.append(Spacer(1, 2))
 
-    # Projects (technical/work projects only)
+    # Projects
     projects = cv.get("projects") or []
     if projects:
-        story.append(Paragraph("PROJECTS", s["section"]))
+        _section(story, s, "Projects")
         for proj in projects:
-            story.append(Paragraph(proj.get("name", ""), s["jobtitle"]))
-            story.append(Paragraph(proj.get("description", ""), s["body"]))
+            story.append(Paragraph(f"<b>{proj.get('name','')}</b>", s["body"]))
+            if proj.get("description"):
+                story.append(Paragraph(proj["description"], s["body"]))
+            story.append(Spacer(1, 2))
 
-    # Publications (books, papers, articles)
+    # Publications
     pubs = [_norm_pub(p) for p in (cv.get("publications") or [])]
     pubs = [p for p in pubs if p["title"]]
     if pubs:
-        story.append(Paragraph("PUBLICATIONS", s["section"]))
+        _section(story, s, "Publications")
         for pub in pubs:
-            meta_bits = [x for x in [pub["publisher"], pub["year"]] if x]
-            line = f"<b>{pub['title']}</b>"
-            if meta_bits:
-                line += f' &nbsp;&mdash;&nbsp; <font color="#52525B"><i>{", ".join(meta_bits)}</i></font>'
-            story.append(Paragraph(line, s["cert_line"]))
+            meta = ", ".join([x for x in [pub["publisher"], pub["year"]] if x])
+            left = Paragraph(f"<b>{pub['title']}</b>", s["job_title"])
+            right = Paragraph(meta, s["job_date_right"])
+            story.append(_two_col_row(left, right, page_w))
             if pub["description"]:
                 story.append(Paragraph(pub["description"], s["body"]))
+            story.append(Spacer(1, 2))
 
     doc.build(story)
     return buf.getvalue()

@@ -95,21 +95,27 @@ async def optimize_cv(cv_text: str, job_title: str, company: str, job_descriptio
 Return JSON with this exact schema:
 {{
   "full_name": "<candidate name from CV>",
-  "headline": "<short 1-line title aligned to target role, e.g. 'Senior Data Engineer'>",
+  "headline": "<short 1-line target role title, e.g. 'Associate Director, Sales & Business Development'>",
   "contact": {{
     "email": "<email or empty>",
     "phone": "<phone or empty>",
     "location": "<location or empty>",
     "linkedin": "<linkedin url or empty>",
-    "website": "<website or empty>"
+    "website": "<website url or empty>"
   }},
+  "objective": "<1-2 sentence career objective statement specific to the target role and company industry. Format: 'To <action verb> <impact> as <target role>...'>",
   "professional_summary": "<3-4 sentence summary tailored to target job, naturally using key JD terms>",
-  "core_skills": [<12-20 skill keywords, prioritizing JD-matched terms>],
+  "skill_groups": [
+    {{
+      "category": "<group name in Title Case, e.g. 'Sales & Strategy', 'Account Management', 'Industry Expertise', 'Business Development'>",
+      "items": [<3-6 skill phrases relevant to this category>]
+    }}
+  ],
   "experience": [
     {{
       "title": "<job title>",
       "company": "<company>",
-      "location": "<location or empty>",
+      "location": "<city, country or empty>",
       "start_date": "<MMM YYYY>",
       "end_date": "<MMM YYYY or 'Present'>",
       "bullets": [<4-6 ATS-optimized achievement bullets>]
@@ -119,7 +125,7 @@ Return JSON with this exact schema:
     {{
       "degree": "<degree>",
       "institution": "<school>",
-      "location": "<location or empty>",
+      "location": "<city, country or empty>",
       "start_date": "<YYYY or empty>",
       "end_date": "<YYYY>",
       "details": "<optional: GPA, honors, or empty>"
@@ -136,7 +142,8 @@ Return JSON with this exact schema:
   ]
 }}
 
-IMPORTANT classification rules:
+IMPORTANT classification & formatting rules:
+- "skill_groups": ALWAYS return exactly 3 or 4 groups (preferably 4) covering the most relevant skill categories for the target role. Each group MUST have a meaningful "category" name (Title Case) and 3-6 short skill items.
 - "projects" = hands-on technical/work projects the candidate built or led (e.g., software systems, deployments, case studies).
 - "publications" = books, journal/conference papers, articles, whitepapers AUTHORED by the candidate. NEVER put books or papers in "projects".
 - If the source CV has no projects, return projects: [].
