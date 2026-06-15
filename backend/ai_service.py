@@ -170,20 +170,54 @@ Return JSON only."""
 
 async def generate_cover_letter(cv_text: str, job_title: str, company: str,
                                  job_description: str, candidate_name: str, session_id: str) -> str:
-    """Returns a polished cover letter as plain text."""
+    """Returns a polished cover letter as plain text following a specific professional structure."""
     system = (
         "You are an expert career writer crafting compelling, personalized cover letters. "
-        "Write in a confident, professional voice. Return plain text only — no JSON, no markdown."
+        "Write in a confident, professional voice. Return plain text only — no JSON, no markdown, no code fences. "
+        "Follow the EXACT block structure specified by the user. Separate every block with a single blank line."
     )
-    prompt = f"""Write a professional 3-4 paragraph cover letter for the candidate.
+    prompt = f"""Write a professional cover letter following this EXACT structure. Output plain text only. Separate every block below with a single blank line (one empty line between blocks).
 
-Structure:
-- Opening: hook + the specific role and company
-- Middle (1-2 paragraphs): 2-3 specific achievements from CV that map directly to JD requirements (use numbers/impact)
-- Closing: enthusiasm + call to action
+BLOCK 1 — Sender header (left-aligned, one item per line):
+{candidate_name}
+<candidate location from CV, e.g. "Mumbai, India">
+<candidate email from CV>
 
-Tone: confident, specific, not generic. Avoid clichés like "I am writing to apply".
-Do NOT fabricate experience. Use today's date format: {{Month Day, Year}}.
+BLOCK 2 — Date (left-aligned, format with ordinal suffix, e.g. "15th June 2026"). Use today's date.
+
+BLOCK 3 — Recipient block (left-aligned, one item per line):
+To,
+The Hiring Manager
+{company}
+<company location if mentioned in JD, else leave that line out>
+
+BLOCK 4 — Subject line (left-aligned, single line):
+Subject: Application for the position of {job_title}
+
+BLOCK 5 — Salutation:
+Dear Hiring Manager,
+
+BLOCK 6 — Opening paragraph (2-3 sentences): State the position being applied for, where it was seen, and a confident one-line hook about why the candidate is a strong fit.
+
+BLOCK 7 — Body paragraph 1 (3-5 sentences): Specific achievements from the CV that map to the JD's most important requirements. Use numbers and impact. Reference the company by name where natural.
+
+BLOCK 8 — Body paragraph 2 with a bulleted list of 3-4 standout achievements. Begin with one introductory sentence like "Some highlights from my career include:" then 3-4 bullets each starting with "• " (bullet character + space). Each bullet should be a concrete, quantified achievement.
+
+BLOCK 9 — Body paragraph 3 (2-3 sentences): Connect candidate's domain expertise / motivation to the company's mission or stated needs. Show research about the company.
+
+BLOCK 10 — Closing paragraph (2 sentences): Express enthusiasm for an interview and gratitude.
+
+BLOCK 11 — Closing phrase:
+Yours Sincerely,
+
+BLOCK 12 — Candidate name:
+{candidate_name}
+
+Rules:
+- Do NOT include any block labels (no "BLOCK 1", "BLOCK 2", etc.) in the output — just the content.
+- Do NOT fabricate experience or numbers. Use only what's in the CV.
+- Avoid generic clichés like "I am writing to apply for the position of...".
+- Left-align everything. No markdown. No JSON.
 
 === TARGET ROLE ===
 Title: {job_title}
@@ -191,13 +225,13 @@ Company: {company}
 Description:
 {job_description}
 
-=== CANDIDATE ===
-Name: {candidate_name}
+=== CANDIDATE NAME ===
+{candidate_name}
 
-=== CV ===
+=== CANDIDATE CV ===
 {cv_text}
 
-Begin the letter directly with the date, then "Dear Hiring Manager," — no preamble."""
+Begin output directly with the candidate's name (no preamble)."""
     chat = _new_chat(session_id, system)
     response = await chat.send_message(UserMessage(text=prompt))
     return response.strip()

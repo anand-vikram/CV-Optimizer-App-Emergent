@@ -382,6 +382,7 @@ def generate_cv_docx(cv: dict) -> bytes:
 
 
 def generate_cover_letter_docx(text: str, candidate_name: str) -> bytes:
+    """Render the AI-generated cover letter text as a clean left-aligned business letter."""
     doc = Document()
     for section in doc.sections:
         section.top_margin = Inches(1.0)
@@ -389,21 +390,19 @@ def generate_cover_letter_docx(text: str, candidate_name: str) -> bytes:
         section.left_margin = Inches(1.0)
         section.right_margin = Inches(1.0)
 
-    if candidate_name:
-        head = doc.add_paragraph()
-        head.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = head.add_run(candidate_name.upper())
-        run.bold = True
-        run.font.size = Pt(18)
-        head.paragraph_format.space_after = Pt(14)
-
-    for para in text.split("\n\n"):
-        para = para.strip()
-        if not para:
-            continue
-        p = doc.add_paragraph(para)
-        for r in p.runs:
-            r.font.size = Pt(11)
+    # The AI returns blocks separated by blank lines. Render each block as a paragraph,
+    # preserving internal line-breaks for blocks like the sender header & recipient block.
+    blocks = [b.strip("\n") for b in text.replace("\r\n", "\n").split("\n\n") if b.strip()]
+    for block in blocks:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        lines = block.split("\n")
+        for i, line in enumerate(lines):
+            if i > 0:
+                p.add_run().add_break()
+            run = p.add_run(line)
+            run.font.size = Pt(11)
+            run.font.color.rgb = DOCX_BODY_RGB
         p.paragraph_format.space_after = Pt(10)
 
     buf = io.BytesIO()
@@ -606,21 +605,21 @@ def generate_cv_pdf(cv: dict) -> bytes:
 
 
 def generate_cover_letter_pdf(text: str, candidate_name: str) -> bytes:
+    """Render the AI-generated cover letter text as a clean left-aligned business letter."""
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=LETTER,
                             leftMargin=1.0 * inch, rightMargin=1.0 * inch,
                             topMargin=1.0 * inch, bottomMargin=1.0 * inch)
-    s = _pdf_styles()
+    styles = getSampleStyleSheet()
+    body_style = ParagraphStyle(
+        "CLBody", parent=styles["Normal"], fontName="Helvetica",
+        fontSize=11, leading=15, textColor=BODY_COLOR, spaceAfter=10, alignment=TA_LEFT,
+    )
     story = []
-    if candidate_name:
-        story.append(Paragraph(candidate_name.upper(), s["name_center"]))
-        story.append(Spacer(1, 10))
-    for para in text.split("\n\n"):
-        para = para.strip()
-        if not para:
-            continue
-        para_html = para.replace("\n", "<br/>")
-        story.append(Paragraph(para_html, s["body"]))
-        story.append(Spacer(1, 8))
+    blocks = [b.strip("\n") for b in text.replace("\r\n", "\n").split("\n\n") if b.strip()]
+    for block in blocks:
+        # Preserve intra-block line breaks (sender header & recipient block)
+        html = block.replace("\n", "<br/>")
+        story.append(Paragraph(html, body_style))
     doc.build(story)
     return buf.getvalue()
