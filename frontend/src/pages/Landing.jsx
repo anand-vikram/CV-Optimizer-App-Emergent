@@ -57,43 +57,43 @@ export default function Landing() {
 
               <div className="divide-y divide-zinc-200">
                 {/* Stat 1 */}
-                <div className="flex items-baseline justify-between px-7 py-7" data-testid="stat-ats">
+                <div className="flex items-center justify-between px-6 py-5" data-testid="stat-ats">
                   <div className="flex items-baseline gap-3">
-                    <span className="font-mono-data text-xs text-zinc-400">01</span>
+                    <span className="font-mono-data text-[10px] text-zinc-400">01</span>
                     <div>
-                      <div className="font-mono-data text-[11px] uppercase text-zinc-500 tracking-wider mb-1">Avg. ATS uplift</div>
-                      <div className="font-display font-black text-6xl lg:text-7xl leading-none tracking-tighter">94<span className="text-[#002FA7]">%</span></div>
+                      <div className="font-mono-data text-[10px] uppercase text-zinc-500 tracking-wider mb-0.5">Avg. ATS uplift</div>
+                      <div className="font-display font-black text-4xl lg:text-5xl leading-none tracking-tighter">94<span className="text-[#002FA7]">%</span></div>
                     </div>
                   </div>
-                  <ChartLineUp size={32} weight="bold" className="text-zinc-300" />
+                  <ChartLineUp size={24} weight="bold" className="text-zinc-300" />
                 </div>
 
                 {/* Stat 2 */}
-                <div className="flex items-baseline justify-between px-7 py-7">
+                <div className="flex items-center justify-between px-6 py-5">
                   <div className="flex items-baseline gap-3">
-                    <span className="font-mono-data text-xs text-zinc-400">02</span>
+                    <span className="font-mono-data text-[10px] text-zinc-400">02</span>
                     <div>
-                      <div className="font-mono-data text-[11px] uppercase text-zinc-500 tracking-wider mb-1">Per analysis</div>
-                      <div className="font-display font-black text-6xl lg:text-7xl leading-none tracking-tighter">
-                        &lt;<span className="text-[#0A0A0A]">60</span><span className="text-[#52525B] text-4xl lg:text-5xl">s</span>
+                      <div className="font-mono-data text-[10px] uppercase text-zinc-500 tracking-wider mb-0.5">Per analysis</div>
+                      <div className="font-display font-black text-4xl lg:text-5xl leading-none tracking-tighter">
+                        &lt;<span className="text-[#0A0A0A]">60</span><span className="text-[#52525B] text-3xl lg:text-4xl">s</span>
                       </div>
                     </div>
                   </div>
-                  <Timer size={32} weight="bold" className="text-zinc-300" />
+                  <Timer size={24} weight="bold" className="text-zinc-300" />
                 </div>
 
                 {/* Stat 3 */}
-                <div className="flex items-baseline justify-between px-7 py-7">
+                <div className="flex items-center justify-between px-6 py-5">
                   <div className="flex items-baseline gap-3">
-                    <span className="font-mono-data text-xs text-zinc-400">03</span>
+                    <span className="font-mono-data text-[10px] text-zinc-400">03</span>
                     <div>
-                      <div className="font-mono-data text-[11px] uppercase text-zinc-500 tracking-wider mb-1">Exports</div>
-                      <div className="font-display font-black text-5xl lg:text-6xl leading-none tracking-tighter">
+                      <div className="font-mono-data text-[10px] uppercase text-zinc-500 tracking-wider mb-0.5">Exports</div>
+                      <div className="font-display font-black text-3xl lg:text-4xl leading-none tracking-tighter">
                         PDF<span className="text-[#002FA7]">+</span>DOCX
                       </div>
                     </div>
                   </div>
-                  <FileText size={32} weight="bold" className="text-zinc-300" />
+                  <FileText size={24} weight="bold" className="text-zinc-300" />
                 </div>
               </div>
 
