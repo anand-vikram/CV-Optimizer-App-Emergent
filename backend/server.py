@@ -66,7 +66,36 @@ def create_token(user_id: str) -> str:
         "iat": datetime.now(timezone.utc),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
+def _bounded_score(value: Any, default: int = 0) -> int:
+    try:
+        score = round(float(value))
+    except (TypeError, ValueError):
+        score = default
+    return max(0, min(100, score))
 
+
+def calculate_ats_score(score_breakdown: dict, fallback: Any = 0) -> int:
+    """Calculate the final ATS score from the detailed scoring dimensions."""
+    if not isinstance(score_breakdown, dict):
+        return _bounded_score(fallback)
+
+    weights = {
+        "keyword_match": 0.35,
+        "skills_alignment": 0.25,
+        "experience_relevance": 0.30,
+        "formatting_ats_safety": 0.10,
+    }
+    present = {
+        key: _bounded_score(score_breakdown.get(key))
+        for key in weights
+        if score_breakdown.get(key) is not None
+    }
+    if not present:
+        return _bounded_score(fallback)
+
+    total_weight = sum(weights[key] for key in present)
+    weighted_score = sum(present[key] * weights[key] for key in present) / total_weight
+    return _bounded_score(weighted_score)
 
 async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     if not authorization or not authorization.lower().startswith("bearer "):
@@ -238,6 +267,8 @@ async def analyze(req: AnalyzeReq, user: dict = Depends(get_current_user)):
     )
 
     analysis_id = str(uuid.uuid4())
+    score_breakdown = result.get("score_breakdown", {})
+ats_score = calculate_ats_score(score_breakdown, result.get("ats_score", 0))
     doc = {
         "id": analysis_id,
         "user_id": user["id"],
@@ -245,8 +276,8 @@ async def analyze(req: AnalyzeReq, user: dict = Depends(get_current_user)):
         "job_title": req.job_title,
         "company": req.company,
         "job_description": req.job_description,
-        "ats_score": int(result.get("ats_score", 0)),
-        "score_breakdown": result.get("score_breakdown", {}),
+       "ats_score": ats_score,
+"score_breakdown": score_breakdown,
         "matched_keywords": result.get("matched_keywords", []),
         "missing_keywords": result.get("missing_keywords", []),
         "gaps": result.get("gaps", []),
