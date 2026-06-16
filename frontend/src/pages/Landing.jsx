@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
-import { ArrowRight, Target, FileText, Sparkle, ChartBar, EnvelopeSimple, ShieldCheck } from "@phosphor-icons/react";
+import { ArrowRight, Target, FileText, Sparkle, ChartBar, EnvelopeSimple, ShieldCheck, Timer, ChartLineUp } from "@phosphor-icons/react";
 import { useAuth } from "../contexts/AuthContext";
 
 const features = [
@@ -45,84 +45,63 @@ export default function Landing() {
                 I have an account
               </Link>
             </div>
-
-            <div className="mt-12 grid grid-cols-3 gap-6 border-t border-zinc-200 pt-6 max-w-lg">
-              <div>
-                <div className="font-display font-black text-3xl" data-testid="stat-ats">94%</div>
-                <div className="text-xs font-mono-data text-zinc-500 uppercase">Avg. ATS uplift</div>
-              </div>
-              <div>
-                <div className="font-display font-black text-3xl">&lt;60s</div>
-                <div className="text-xs font-mono-data text-zinc-500 uppercase">Per analysis</div>
-              </div>
-              <div>
-                <div className="font-display font-black text-3xl">PDF<span className="text-[#002FA7]">+</span>DOCX</div>
-                <div className="text-xs font-mono-data text-zinc-500 uppercase">Exports</div>
-              </div>
-            </div>
           </div>
 
-          <div className="lg:col-span-5 fade-up">
-            {/* Mini CV preview — proof of the actual professional template the user receives */}
-            <div className="bg-white border border-zinc-200 brutalist-shadow overflow-hidden">
-              <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 bg-zinc-50">
-                <span className="font-mono-data text-[10px] uppercase text-zinc-500 tracking-wider">Optimized_CV.pdf</span>
-                <span className="font-mono-data text-[10px] text-[#00C853]">● ATS-READY</span>
+          {/* Right column — Stats panel (replaces previous mini CV preview) */}
+          <div className="lg:col-span-5 fade-up flex items-center">
+            <div className="w-full bg-white border border-zinc-200 brutalist-shadow">
+              <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3 bg-zinc-50">
+                <span className="font-mono-data text-[11px] uppercase text-zinc-500 tracking-wider">// By the numbers</span>
+                <span className="font-mono-data text-[11px] text-[#00C853]">● LIVE</span>
               </div>
-              <div className="p-7 text-[#0A0A0A]">
-                {/* Centered header */}
-                <div className="text-center">
-                  <div className="font-bold text-[20px] tracking-tight uppercase leading-tight">Vikram Anand</div>
-                  <div className="text-[10px] mt-1.5">Mumbai, India  |  vikram@example.com  |  +91-9699072015</div>
+
+              <div className="divide-y divide-zinc-200">
+                {/* Stat 1 */}
+                <div className="flex items-baseline justify-between px-7 py-7" data-testid="stat-ats">
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-mono-data text-xs text-zinc-400">01</span>
+                    <div>
+                      <div className="font-mono-data text-[11px] uppercase text-zinc-500 tracking-wider mb-1">Avg. ATS uplift</div>
+                      <div className="font-display font-black text-6xl lg:text-7xl leading-none tracking-tighter">94<span className="text-[#002FA7]">%</span></div>
+                    </div>
+                  </div>
+                  <ChartLineUp size={32} weight="bold" className="text-zinc-300" />
                 </div>
 
-                {/* Objective */}
-                <div className="mt-4">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-[#1F2937] pb-0.5 border-b border-[#1F2937] mb-1.5">Objective</div>
-                  <div className="text-[10px] leading-snug">To spearhead strategic growth as Associate Director, Sales & Business Development in the Energy & Chemicals sector.</div>
-                </div>
-
-                {/* Core Skills 4-col grid */}
-                <div className="mt-3">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-[#1F2937] pb-0.5 border-b border-[#1F2937] mb-2">Core Skills</div>
-                  <div className="grid grid-cols-4 gap-2.5">
-                    {[
-                      ["Sales & Strategy", ["Enterprise Sales", "Pipeline Mgmt", "Consultative Selling"]],
-                      ["Account Mgmt", ["C-Level Relations", "Strategic Accounts", "Stakeholder Mgmt"]],
-                      ["Industry", ["Oil & Gas", "Petroleum", "MEA Markets"]],
-                      ["BD", ["Market Entry", "Partnerships", "Deal Closure"]],
-                    ].map(([cat, items]) => (
-                      <div key={cat}>
-                        <div className="text-[7.5px] font-bold uppercase tracking-wider text-[#1F2937] mb-1">{cat}</div>
-                        {items.map((it) => (
-                          <div key={it} className="text-[8px] leading-tight mb-0.5">{it}</div>
-                        ))}
+                {/* Stat 2 */}
+                <div className="flex items-baseline justify-between px-7 py-7">
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-mono-data text-xs text-zinc-400">02</span>
+                    <div>
+                      <div className="font-mono-data text-[11px] uppercase text-zinc-500 tracking-wider mb-1">Per analysis</div>
+                      <div className="font-display font-black text-6xl lg:text-7xl leading-none tracking-tighter">
+                        &lt;<span className="text-[#0A0A0A]">60</span><span className="text-[#52525B] text-4xl lg:text-5xl">s</span>
                       </div>
-                    ))}
+                    </div>
                   </div>
+                  <Timer size={32} weight="bold" className="text-zinc-300" />
                 </div>
 
-                {/* Experience */}
-                <div className="mt-3">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-[#1F2937] pb-0.5 border-b border-[#1F2937] mb-2">Professional Experience</div>
-                  <div className="flex items-baseline justify-between">
-                    <div className="text-[10px] font-bold">VP — International Business Development</div>
-                    <div className="text-[9px]">Jun 2019 – Present</div>
+                {/* Stat 3 */}
+                <div className="flex items-baseline justify-between px-7 py-7">
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-mono-data text-xs text-zinc-400">03</span>
+                    <div>
+                      <div className="font-mono-data text-[11px] uppercase text-zinc-500 tracking-wider mb-1">Exports</div>
+                      <div className="font-display font-black text-5xl lg:text-6xl leading-none tracking-tighter">
+                        PDF<span className="text-[#002FA7]">+</span>DOCX
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[9px] font-bold">SAGA Global Consultants</div>
-                  <div className="text-[9px] mb-1">Mumbai, India</div>
-                  <ul className="list-disc pl-3 space-y-0.5 text-[8.5px] leading-snug">
-                    <li>Exceeded revenue targets by 150% across MEA enterprise accounts.</li>
-                    <li>Closed $30M+ in process-optimization contracts with refinery operators.</li>
-                  </ul>
+                  <FileText size={32} weight="bold" className="text-zinc-300" />
                 </div>
               </div>
-            </div>
 
-            {/* Caption */}
-            <div className="mt-4 flex items-center gap-2 font-mono-data text-[10px] uppercase tracking-wider text-zinc-500">
-              <span className="w-6 h-px bg-zinc-300" />
-              <span>What you'll download — PDF + DOCX, recruiter-ready</span>
+              <div className="border-t border-zinc-200 px-5 py-3 bg-zinc-50">
+                <div className="font-mono-data text-[10px] uppercase tracking-wider text-zinc-500 text-center">
+                  ATS-compliant · Claude Sonnet 4.5 · Recruiter-ready output
+                </div>
+              </div>
             </div>
           </div>
         </div>
